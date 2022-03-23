@@ -6,6 +6,12 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentManager;
+import androidx.fragment.app.FragmentOnAttachListener;
+
 import com.google.ar.core.AugmentedImage;
 import com.google.ar.core.AugmentedImageDatabase;
 import com.google.ar.core.Config;
@@ -24,19 +30,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
-import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.fragment.app.Fragment;
-import androidx.fragment.app.FragmentManager;
-import androidx.fragment.app.FragmentOnAttachListener;
-
 public class MainActivity extends AppCompatActivity implements
         FragmentOnAttachListener,
         BaseArFragment.OnSessionConfigurationListener {
 
     private final List<CompletableFuture<Void>> futures = new ArrayList<>();
     private ArFragment arFragment;
-    private boolean rabbitDetected = false;
+    private boolean doorDetected = false;
+    //
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -67,16 +69,16 @@ public class MainActivity extends AppCompatActivity implements
     public void onSessionConfiguration(Session session, Config config) {
         // Disable plane detection
         config.setPlaneFindingMode(Config.PlaneFindingMode.DISABLED);
-
+        config.setFocusMode(Config.FocusMode.AUTO);
         // Images to be detected by our AR need to be added in AugmentedImageDatabase
         // This is how database is created at runtime
         // You can also prebuild database in you computer and load it directly (see: https://developers.google.com/ar/develop/java/augmented-images/guide#database)
 
         AugmentedImageDatabase database = new AugmentedImageDatabase(session);
 
-        Bitmap rabbitImage = BitmapFactory.decodeResource(getResources(), R.drawable.rabbit);
+        Bitmap doorImage = BitmapFactory.decodeResource(getResources(), R.drawable.door);
         // Every image has to have its own unique String identifier
-        database.addImage("rabbit", rabbitImage);
+        database.addImage("door", doorImage);
 
         config.setAugmentedImageDatabase(database);
 
@@ -96,7 +98,7 @@ public class MainActivity extends AppCompatActivity implements
 
     public void onAugmentedImageTrackingUpdate(AugmentedImage augmentedImage) {
         // If there are both images already detected, for better CPU usage we do not need scan for them
-        if (rabbitDetected) {
+        if (doorDetected) {
             return;
         }
 
@@ -106,32 +108,34 @@ public class MainActivity extends AppCompatActivity implements
             // Setting anchor to the center of Augmented Image
             AnchorNode anchorNode = new AnchorNode(augmentedImage.createAnchor(augmentedImage.getCenterPose()));
 
-            // If rabbit model haven't been placed yet and detected image has String identifier of "rabbit"
+            // If door model haven't been placed yet and detected image has String identifier of "door"
             // This is also example of model loading and placing at runtime
-            if (!rabbitDetected && augmentedImage.getName().equals("rabbit")) {
-                rabbitDetected = true;
-                Toast.makeText(this, "Rabbit tag detected", Toast.LENGTH_LONG).show();
+            if (!doorDetected && augmentedImage.getName().equals("door")) {
+                doorDetected = true;
+                Toast.makeText(this, "Door tag detected", Toast.LENGTH_LONG).show();
 
                 anchorNode.setWorldScale(new Vector3(3.5f, 3.5f, 3.5f));
                 arFragment.getArSceneView().getScene().addChild(anchorNode);
 
                 futures.add(ModelRenderable.builder()
-                        .setSource(this, Uri.parse("models/Rabbit.glb"))
+                        .setSource(this, Uri.parse("models/door_two.glb"))
                         .setIsFilamentGltf(true)
                         .build()
-                        .thenAccept(rabbitModel -> {
+                        .thenAccept(doorModel->{
                             TransformableNode modelNode = new TransformableNode(arFragment.getTransformationSystem());
-                            modelNode.setRenderable(rabbitModel);
+                            modelNode.getScaleController().setMaxScale(0.003f);
+                            modelNode.getScaleController().setMinScale(0.002f);
+                            modelNode.setRenderable(doorModel);
                             anchorNode.addChild(modelNode);
                         })
                         .exceptionally(
                                 throwable -> {
-                                    Toast.makeText(this, "Unable to load rabbit model", Toast.LENGTH_LONG).show();
+                                    Toast.makeText(this, "Unable to load door model", Toast.LENGTH_LONG).show();
                                     return null;
                                 }));
             }
         }
-        if (rabbitDetected) {
+        if (doorDetected) {
             arFragment.getInstructionsController().setEnabled(
                     InstructionsController.TYPE_AUGMENTED_IMAGE_SCAN, false);
         }
